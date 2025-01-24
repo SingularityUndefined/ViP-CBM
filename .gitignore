@@ -1,0 +1,15 @@
+checkpoints/
+Checkpoints/
+log/
+FinalCheckpoints_0713/
+FinalCheckpoints_0714/
+FinalLogger/
+FinalLogs/
+FinalLogs_0709/
+FinalLogs_0713/
+__pycache__/
+.ipynb_checkpoints/
+FinalCheckpoints/
+FinalCheckpoints_0709/
+logger/
+logs/
