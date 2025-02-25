@@ -7,9 +7,11 @@ FinalLogger/
 FinalLogs/
 FinalLogs_0709/
 FinalLogs_0713/
+FinalLogs_0224/
 __pycache__/
 .ipynb_checkpoints/
 FinalCheckpoints/
 FinalCheckpoints_0709/
+FinalCheckpoints_0224/
 logger/
 logs/

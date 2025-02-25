@@ -17,13 +17,13 @@ import random
 import argparse
 # 1. logging settings
 
-def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='CUB'):
+def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='CUB', learning_rate=1e-2):
     n_classes = 200
     n_concepts = 112
     seed_torch(seed)
-    log_root = f'SE-CBM-group/FinalLogs_0713/Grouping'
+    log_root = f'SE-CBM-group/FinalLogs_0224/Grouping'
     # logger_root = 'SE-CBM-group/FinalLogger'
-    checkpoint_root = 'SE-CBM-group/FinalCheckpoints_0713'
+    checkpoint_root = 'SE-CBM-group/FinalCheckpoints_0224'
 
     # changing components
     # dataset_folder = 'CUB'
@@ -73,7 +73,6 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     logger.info(f'FOLDER NAME: {experiment_folder}')
 
     # 4. training settings
-    learning_rate = 1e-2
     # num_epochs = 400
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
     print(device)
@@ -133,7 +132,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     print(f"Number of learnable parameters: {num_learnable_params}")
     print(f"Number of non-learnable parameters: {num_non_learnable_params}")
 
-    if model_name in ['ViP-CBM-anchor', 'ViP-CEM-anchor']:
+    if 'ViP' in model_name:
         train(model, 'joint', device, dataloaders, criterion, optimizer, attr_group_dict, writer, logger, num_epochs, checkpoint_dir, anchor_model=2) 
     else:
         train(model, 'joint', device, dataloaders, criterion, optimizer, attr_group_dict, writer, logger, num_epochs, checkpoint_dir, anchor_model=0) 
@@ -145,7 +144,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
 logger_root = 'SE-CBM-group/FinalLogger'
 dataset_folder = 'CUB'
 logger_dir = os.path.join(logger_root, dataset_folder)
-logger_name = '0713.log'
+logger_name = '0224.log'
 logger = get_logger_file(logger_dir, logger_name)
 
 
@@ -153,7 +152,22 @@ logger = get_logger_file(logger_dir, logger_name)
 # for model_name in ['CEM', 'ProbCBM', 'ViP-CEM-margin']:
 #     run_main(logger, 12, 32, 400, model_name=model_name, seed=520)
 
-run_main(logger, 12, 32, 400, model_name='ViP-CEM-anchor', seed=520)
+# run_main(logger, 12, 32, 400, model_name='jointCBM-nonlinear', seed=520)
+try:
+    run_main(logger, 12, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=1e-2)
+except Exception as e:
+    logger.info(f'error in ViP-CBM-anchor-NG with 12, 32, 1e-2')
+    logger.info(e)
+try:
+    run_main(logger, 24, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=1e-2)
+except Exception as e:
+    logger.info(f'error in ViP-CBM-anchor-NG with 24, 32, 1e-2')
+    logger.info(e)
+try:
+    run_main(logger, 24, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=5e-3)
+except Exception as e:
+    logger.info(f'error in ViP-CBM-anchor-NG with 24, 32, 5e-3')
+    logger.info(e)
 # for seed in [42, 24601, 3407]:
 #     for model_name in ['ViP-CEM-anchor', 'ViP-CEM-margin']:
 #         run_main(logger, 12, 32, 400, model_name=model_name, seed=seed)

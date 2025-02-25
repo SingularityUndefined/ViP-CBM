@@ -176,9 +176,9 @@ class SemanticCBM(nn.Module):
         self.feature_extractors = nn.Sequential(*layers)
         if pretrained:
             self.feature_extractors.eval()
-            for param in self.feature_extractors.parameters():
-                # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
-                param.requires_grad = False
+            # for param in self.feature_extractors.parameters():
+            #     # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
+            #     param.requires_grad = False
                         
         # links to our work, use a 1x1conv to align channels, a linear fc to align embedding dim
         self.conv1x1 = nn.Conv2d(self.in_channels, self.emb_dim, kernel_size=1, stride=1)

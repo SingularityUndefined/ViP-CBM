@@ -25,6 +25,7 @@ class CBM(nn.Module):
 
         if pretrained:
             self.feature_extractor.eval()
+            # NOTE: if finetune
             for param in self.feature_extractor.parameters():
                 # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
                 param.requires_grad = False
