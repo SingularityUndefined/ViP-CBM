@@ -77,6 +77,13 @@ def run_epoch(model:nn.Module, model_type:str, device:torch.device, dataloaders:
 
     # iteration over dataloader
     for samples in tqdm(dataloaders[mode]):
+        # print(type(samples))
+        if not isinstance(samples, dict):
+            samples = {
+                'image': samples[0],
+                'class_label': samples[1][0],
+                'concept_label': samples[1][1]
+            }
         images, labels, concepts = samples['image'], samples['class_label'], samples['concept_label']
         x, y, c = images.to(device), labels.to(device).squeeze().type(torch.long), concepts.to(device)
         if mode == 'train':

@@ -212,6 +212,7 @@ class SemanticCBM(nn.Module):
     def forward(self, x, c): #args define whether to have c
         N = x.size(0) # x in (N, 3, 224, 224)
         z = self.feature_extractors(x) # in (N, 512, 7, 7)
+        # print(z.size())
         z = self.conv1x1(z) # in (N, emb_dim, 7, 7)
         z = self.align_fc(torch.flatten(z, start_dim=-2, end_dim=-1)) # in (N,emb_dim, channels)
         if self.use_group:

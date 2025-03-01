@@ -270,3 +270,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dataloaders, concept_names = load_data(args)
     print(dataloaders, concept_names)
+    train_iterator = iter(dataloaders['train'])
+    batch = next(train_iterator)
+    inputs, targets = batch[0], batch[1]
+    print(inputs.shape, targets.shape)
