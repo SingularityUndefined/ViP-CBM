@@ -231,6 +231,7 @@ class SemanticCBM(nn.Module):
                     u_k = F.relu(u_k + 1 / (torch.norm(z, p=2, dim=1).unsqueeze(1)) * u_k)
                 # u_k = u_k.transpose(-2, -1) # in (N, k, channels)
                 u_list.append(u_k)
+
                 if self.anchor_model == 0:
                     logits = self.concept_prediction(u_k).squeeze(-1)
                 else:
@@ -301,6 +302,130 @@ class SemanticCBM(nn.Module):
                 return c_pred, u
             else:
                 return (c_pred)
+            
+    def intervene(self, x, c, intervene_idx, fully_intervened=False): #args define whether to have c
+        N = x.size(0) # x in (N, 3, 224, 224)
+        z = self.feature_extractors(x) # in (N, 512, 7, 7)
+        # print(z.size())
+        z = self.conv1x1(z) # in (N, emb_dim, 7, 7)
+        z = self.align_fc(torch.flatten(z, start_dim=-2, end_dim=-1)) # in (N,emb_dim, channels)
+        if self.use_group:
+            v_list, p_list, logits_list, prd_list, logitsrd_list, u_list = [], [], [], [], [], []
+            count = 0
+            for (i, k) in enumerate(self.group_size):
+                c_k = c[:, count:count+k]
+                v_k = self.embeddings[i](torch.LongTensor(range(k)).to(self.device)) # in (N, k, emb_dim)
+                v_list.append(v_k)
+                # print(z.size(), v_k.size())
+                # u_k = torch.matmul(z, v_k.T) # in (N, channels, k)
+                u_k = torch.matmul(v_k, z) # in (N, k, channels)
+                # nonlinear
+                if self.nonlinear:
+                    # u_k = F.relu(u_k + 1 / torch.norm(z, p=2, dim=-1).unsqueeze(-1) * u_k) # u_c = z_c v (1 + 1 / norm(z_c))
+                    u_k = F.relu(u_k + 1 / (torch.norm(z, p=2, dim=1).unsqueeze(1)) * u_k)
+                # u_k = u_k.transpose(-2, -1) # in (N, k, channels)
+
+                ################# TODO: intervene, change u to its reflection##########
+                group_idx = list(range(count, count+k))
+                # print('group idx, intervene idx', group_idx, intervene_idx)
+                if group_idx in intervene_idx:
+                    # print(f'start intervening group {i}, group idx {group_idx}')
+                    assert self.anchor_model == 2, 'only support anchor model 2'
+                    # c_intervene = ck # in (B, k), binarized
+                    # fully intervened, u_k in (B, k, channels)
+                    if fully_intervened:
+                        u_k = c_k.unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k).unsqueeze(-1) * self.concept_prediction.anchors[0]
+                    else:
+                        logits = self.concept_prediction(u_k, c_k).squeeze(-1) # (N, k, channels) -> (N, k)
+                        wrong_mask = (c_k != (logits > 0).float())
+                        u_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
+
+                    # print(f'end intervening group {i}, group idx {group_idx}')
+                u_list.append(u_k)
+                # passing through    
+                if self.anchor_model == 0:
+                    logits = self.concept_prediction(u_k).squeeze(-1)
+                else:
+                    logits = self.concept_prediction(u_k, c_k).squeeze(-1) # (N, k, channels) -> (N, k)                 
+                # print(logits.size())
+                p = F.sigmoid(logits)
+                p_list.append(p)
+                logits_list.append(logits)
+                # randInt policy, only used when training
+                if self.model_type == 'joint' and self.randInt is not None and self.training:
+                    probs = torch.rand(N, k)
+                    mask = (probs < self.randInt)
+                    p[mask] = c_k[mask]
+                    # 0.05 percentile
+                    logits[mask] = (c_k[mask] - 0.5) * 2 * torch.log(19)
+                    prd_list.append(p)
+                    logitsrd_list.append(logits)
+                    # TODO: refine u, if wrong prediction, change u to its reflection
+                    # torch.where(mask)
+                count += k
+
+            c_pred = torch.cat(p_list, dim=-1) # in (N, n_c)
+            # print(u_k, c_pred.max(), c_pred.min())
+            logits_pred = torch.cat(logits_list, dim=-1)
+            v = torch.cat(v_list, dim=-2)
+            u = torch.cat(u_list, dim=-2)
+            # print(u)
+
+            if self.randInt is not None and self.training:
+                crd_pred = torch.cat(prd_list, dim=-1)
+                # v_pred = crd_pred.unsqueeze(-1) * v
+                # TODO: refine u as 
+                # v_pred = c_pred.unsqueeze(-1) * v
+
+        else:
+            v = self.embeddings(torch.LongTensor(range(self.n_concepts)).to(self.device)) # in (n_c, emb_dim)
+            u = torch.matmul(v, z) # in (N, channels, n_c)
+            # print(z.size(), u.size())
+            if self.nonlinear:
+                # u_k = F.relu(u_k + 1 / torch.norm(z, p=2, dim=1).unsqueeze(1) * u_k)
+                u = F.relu(u + 1 / (torch.norm(z, p=2, dim=1).unsqueeze(1)) * u) # u_c = relu(z_c v + z_c v / norm(z_c))
+            # u = u.transpose(-2, -1) # in (N, n_c, channels)
+            # intervene
+            c_k = c[:, intervene_idx]
+            u_original = u.clone()
+            if fully_intervened:
+                u[:, intervene_idx] = c_k.unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k).unsqueeze(-1) * self.concept_prediction.anchors[0]
+            else:
+                logits_pred = self.concept_prediction(u, c).squeeze(-1)
+                wrong_mask = (c_k != (logits_pred > 0).float())
+                u[:, intervene_idx][wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
+            
+            print('u changed', torch.norm(u - u_original, p=2, dim=-1).mean())
+
+            logits_pred = self.concept_prediction(u, c).squeeze(-1) # in (N, n_c)
+            c_pred = F.sigmoid(logits_pred)
+            # v_pred = c_pred.unsqueeze(-1) * v
+        # print(self.concept_prediction.alpha,)
+        if self.explaining:
+            return z, u, torch.matmul(v, z)
+        if self.model_type == 'joint':
+            if self.use_emb:
+                y_pred = self.task_model(u.flatten(-2))
+                # return c_pred, y_predsek
+            else:
+                if self.use_logits:
+                    y_pred = self.task_model(logits_pred)
+                    # return logits_pred, y_pred
+                else:
+                    y_pred = self.task_model(c_pred) # logits
+                    # return c_pred, y_pred
+        return y_pred
+        #     if self.use_logits:
+        #         return logits_pred, y_pred
+        #     else:
+        #         return c_pred, y_pred
+        # else:
+        #     if self.use_logits:
+        #         return (logits_pred)
+        #     elif self.use_emb:
+        #         return c_pred, u
+        #     else:
+        #         return (c_pred)
             
 class JointLoss(nn.Module):
     def __init__(self, alpha, beta=1, use_concept_logit=True, use_triplet_loss=False):

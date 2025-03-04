@@ -26,9 +26,9 @@ class CBM(nn.Module):
         if pretrained:
             self.feature_extractor.eval()
             # NOTE: if finetune
-            for param in self.feature_extractor.parameters():
-                # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
-                param.requires_grad = False
+            # for param in self.feature_extractor.parameters():
+            #     # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
+            #     param.requires_grad = False
 
         self.backbone_dim = backbone_dim
         self.conv1x1 = nn.Conv2d(self.in_channels, self.channels, kernel_size=1, stride=1)
@@ -95,9 +95,9 @@ class CEM(nn.Module):
 
         if pretrained:
             self.feature_extractor.eval()
-            for param in self.feature_extractor.parameters():
-                # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
-                param.requires_grad = False
+            # for param in self.feature_extractor.parameters():
+            #     # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
+            #     param.requires_grad = False
 
         self.backbone_dim = backbone_dim
         self.conv1x1 = nn.Conv2d(self.in_channels, self.channels, kernel_size=1, stride=1)
@@ -144,9 +144,9 @@ class ProbCBM(nn.Module):
 
         if pretrained:
             self.feature_extractor.eval()
-            for param in self.feature_extractor.parameters():
-                # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
-                param.requires_grad = False
+            # for param in self.feature_extractor.parameters():
+            #     # if 'conv1' in name or 'bn1' in name or 'layer1' in name or 'layer2' in name:
+            #     param.requires_grad = False
 
         self.backbone_dim = backbone_dim
         self.conv1x1 = nn.Conv2d(self.in_channels, self.emb_dim, kernel_size=1, stride=1)

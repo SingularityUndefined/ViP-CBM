@@ -107,7 +107,7 @@ def load_data(args):
     num_concepts = args.num_concepts
     num_hidden = args.num_hidden
     seed = args.seed
-    seed_everything(seed)
+    # seed_everything(seed)
 
     # download celeba dataset
     celeba_train_data = torchvision.datasets.CelebA(

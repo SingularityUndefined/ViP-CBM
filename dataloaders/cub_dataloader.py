@@ -226,7 +226,9 @@ def load_data(args):
     train_image = sample['image'].permute(1,2,0).numpy()
     fig = plt.figure()
     plt.imshow(Image.fromarray((train_image *255).astype(np.uint8)))
-    plt.savefig('GroupCBM/dataloader/train_sample_'+train_label+'.png')
+    if not os.path.exists('./dataloaders/sample_images'):
+        os.makedirs('./dataloaders/sample_images')
+    plt.savefig('./dataloaders/sample_images/train_sample_'+train_label+'.png')
 
     # print(train_dataset.__getitem__(0))
     train_loader, val_loader, test_loader = None, None, None

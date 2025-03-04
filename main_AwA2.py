@@ -42,7 +42,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
 
     # 2. parsers
     parser = argparse.ArgumentParser(description='manual to this script')
-    parser.add_argument("--dataroot", type=str, default='AwA2/Animals_with_Attributes2')
+    parser.add_argument("--dataroot", type=str, default='/home/disk/disk4/AwA2/Animals_with_Attributes2')
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--img-size", type=int, default=256)
     parser.add_argument('--workers', type=int, default=8)
@@ -161,8 +161,12 @@ for model_name in ['ViP-CEM-anchor-NG', 'ViP-CEM-margin']:
 #         logger.info(f'error in ViP-CBM-LP with seed {seed}')
 #         continue
 
-for seed in [2407, 42, 520]:
-        run_main(logger, 12, 32, 250, model_name='ViP-CEM-anchor-LP', seed=seed)
+for channel in [6, 12, 24]:
+    for emb_dim in [16, 32, 64]:
+        run_main(logger, channel, emb_dim, 400, model_name='ViP-CEM-anchor', seed=24601)
+
+# for seed in [2407, 42, 520]:
+#         run_main(logger, 12, 32, 250, model_name='ViP-CEM-anchor-LP', seed=seed)
 
 
 # for seed in [42, 24601, 3407]:

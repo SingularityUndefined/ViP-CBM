@@ -18,7 +18,38 @@ import random
 import argparse
 # 1. logging settings
 
-def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='celeba', learning_rate=1e-2):
+def intervene(model, test_dataloader, device, intervene_group):
+    '''
+    model: baseline model or SemanticCBM
+    dataloader: test loader
+    '''
+    model.eval()
+
+    total_sample = 0
+    y_correct = 0
+    for samples in tqdm(test_dataloader):
+        if not isinstance(samples, dict):
+            samples = {
+                'image': samples[0],
+                'class_label': samples[1][0],
+                'concept_label': samples[1][1]
+            }
+        images, labels, concepts = samples['image'], samples['class_label'], samples['concept_label']
+        x, y, c = images.to(device), labels.to(device).squeeze().type(torch.long), concepts.to(device)
+
+        with torch.no_grad():
+            y_out = model.intervene(x, c, intervene_group, fully_intervened=False) # a softmax list
+            # print(y_out)
+            y_pred = torch.argmax(y_out, dim=1)
+            y_correct += torch.sum(y_pred == y).item()
+            total_sample += y.size(0)
+
+    return y_correct / total_sample
+            # compute task accuracy
+
+
+
+def run_intervene(logger, channel, emb_dim, device, model_filename='model-400.pth', shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='celeba'):
     n_classes = 256
     n_concepts = 6
     # seed_torch(seed)
@@ -63,12 +94,13 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     # parser.add_argument('--USE_IMAGENET_INCEPTION', type=bool, default=False)
     # parser.add_argument('--normalized', type=bool, default=False)
     # parser.add_argument('--used-group', type=list, default=None)
-    parser.add_argument('--device', type=str, default='cuda:2')
+    # parser.add_argument('--device', type=str, default='cuda:2')
     parser.add_argument('--num-concepts', type=int, default=6)
     parser.add_argument('--num-hidden', type=int, default=2)
     parser.add_argument('--seed', type=int, default=seed)
     parser.add_argument('--subsample', type=int, default=12)
     args = parser.parse_args()
+    args.device = device
 
     # TODO: if img_size = 64, backbone network output dim = 2
     if args.img_size == 64:
@@ -94,76 +126,95 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
         # TODO: change the backbone dims (in this case ?)
         model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=False, use_logits=True, anchor_model=2, shift=shift).to(device)
         alpha, beta = 1, 1
-        criterion = JointLoss(alpha, beta).to(device)
+
     if model_name == 'ViP-CBM-anchor-NG':
         model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=False, use_emb=False, use_logits=True, anchor_model=2, shift=shift).to(device)
         alpha, beta = 1, 1
-        criterion = JointLoss(alpha, beta).to(device)
+
     elif model_name == 'ViP-CBM-linear':
         model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=False, use_logits=False, anchor_model=0, shift=shift).to(device)
         alpha, beta = 1, 1
-        criterion = JointLoss(alpha, beta, use_concept_logit=False).to(device)
+
     elif model_name == 'ViP-CEM-anchor':
         model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=True, use_logits=True, anchor_model=2, shift=shift).to(device)
         alpha, beta = 1, 1
-        criterion = JointLoss(alpha, beta).to(device)
+
     elif model_name == 'ViP-CEM-margin':
         model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=True, use_logits=True, anchor_model=2, shift='symmetric').to(device)
         alpha, beta = 1, 1
-        criterion = JointLoss(alpha, beta).to(device)
+
     elif model_name == 'ViP-CEM-anchor-NG':
         model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=False, use_emb=True, use_logits=True, anchor_model=2, shift=shift).to(device)
         alpha, beta = 1, 1
-        criterion = JointLoss(alpha, beta).to(device)
+
     elif model_name == 'ViP-CEM-anchor-LP':
         model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=False, use_group=True, use_emb=True, use_logits=True, anchor_model=0, shift=shift).to(device)
         alpha, beta = 1, 1
-        criterion = JointLoss(alpha, beta).to(device)
+
         
     elif model_name == 'jointCBM-nonlinear':
         model = CBM(backbone_dim, n_classes, n_concepts, emb_dim, 128, use_sigmoid=False).to(device)
         alpha, beta = 1, 1
-        criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
+
     elif model_name == 'jointCBM-linear':
         model = CBM(backbone_dim, n_classes, n_concepts, emb_dim, None, use_sigmoid=False).to(device)
         alpha, beta = 1, 1
-        criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
+
     elif model_name == 'CEM':
         model = CEM(backbone_dim, n_classes, n_concepts, emb_dim, use_sigmoid=False).to(device)
         alpha, beta = 1, 1
-        criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
+
     elif model_name == 'ProbCBM':
         model = ProbCBM(backbone_dim, n_classes, n_concepts, emb_dim, device, use_sigmoid=False).to(device)
         alpha, beta = 1, 1
-        criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
-    # print(model.n_concepts, model.use_group, list(model.embeddings.parameters()))
-    # criterion = JointLoss(alpha, beta).to(device)
-    # optimizer = optim.SGD(filter(lambda p : p.requires_grad, model.parameters()), lr=learning_rate, weight_decay=5e-4, momentum=0.9)
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate, weight_decay=5e-4, momentum=0.9)
-    # multistep LR
-    # optim.lr_scheduler.MultiStepLR(optimizer, [80, 160], gamma=0.2)
-    num_learnable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    num_non_learnable_params = sum(p.numel() for p in model.parameters() if not p.requires_grad)
-    print(f"Number of learnable parameters: {num_learnable_params}")
-    print(f"Number of non-learnable parameters: {num_non_learnable_params}")
 
-    if 'ViP' in model_name:
-        if 'LP' in model_name:
-            train(model, 'joint', device, dataloaders, criterion, optimizer, attr_group_dict, writer, logger, num_epochs, checkpoint_dir, anchor_model=0)
-        else:
-            train(model, 'joint', device, dataloaders, criterion, optimizer, attr_group_dict, writer, logger, num_epochs, checkpoint_dir, anchor_model=2) 
-    else:
-        train(model, 'joint', device, dataloaders, criterion, optimizer, attr_group_dict, writer, logger, num_epochs, checkpoint_dir, anchor_model=0) 
+    # print(model.n_concepts, model.use_group, list(model.embeddings.parameters()))
+
+    # load model
+    model_path = os.path.join(checkpoint_dir, model_filename)
+    model.load_state_dict(torch.load(model_path))
+
+    # intervene
+    test_dataloader = dataloaders['test']
+
+    group_name = []
+    concept_index = []
+    group_index = []
+
+
+    for key, value in attr_group_dict.items():
+        group_name.append(key)
+        concept_index = concept_index + value
+        group_index.append(value)
+        group_num = len(group_name)
+        logger.info(f'intervene group:{group_name}, concept index ({len(concept_index)} concepts) {group_index}')
+        try:
+            if 'ViP' in model_name:
+                if model.use_group:
+                    acc = intervene(model, test_dataloader, device, group_index)
+                else:
+                    acc = intervene(model, test_dataloader, device, concept_index)
+            else: # left for baselines
+                pass
+            logger.info(f'intervene group count {group_num}, task acc: {acc:.4f}')
+        except Exception as e:
+            logger.info(f'error in intervene group count {group_num}: {e}')
+            continue
+        # acc = intervene(model, test_dataloader, device, concept_index)
+        # logger.info(f'intervene group count {group_num}, task acc: {acc:.4d}')
     
     # save final models
     
-    torch.save(model.state_dict(), os.path.join(checkpoint_dir, 'model-400.pth'))
 
 logger_root = './FinalLogger'
 dataset_folder = 'CelebA'
 logger_dir = os.path.join(logger_root, dataset_folder)
-logger_name = 'vip-0224-ablation.log'
+logger_name = 'vip-0224-intervene.log'
 logger = get_logger_file(logger_dir, logger_name)
+
+for model_name in ['ViP-CEM-anchor', 'ViP-CEM-margin', 'jointCBM-nonlinear', 'CEM', 'ProbCBM']:
+    run_intervene(logger, 12, 32, device='cuda:3', seed=3407, model_name=model_name)
+    # run_intervene(logger, 12, 32, device='cuda:3', seed=3407, model_name='ViP-CEM-anchor')
 
 
 
@@ -181,9 +232,9 @@ logger = get_logger_file(logger_dir, logger_name)
 #             logger.info(f'error in {model_name} with emb_dim 12, proj_dim 32, lr 5e-3')
 #             logger.info(e)
 
-for channel in [6, 12, 24]:
-    for emb_dim in [16, 32, 64]:
-        run_main(logger, channel, emb_dim, 400, model_name='ViP-CEM-anchor-NG', seed=3407)
+# for channel in [6, 12, 24]:
+#     for emb_dim in [16, 32, 64]:
+#         run_main(logger, channel, emb_dim, 400, model_name='ViP-CEM-anchor-NG', seed=3407)
         
 # for seed in [42, 24601, 2407]:
 

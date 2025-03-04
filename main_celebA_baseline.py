@@ -5,22 +5,24 @@ from utils import *
 from train.train import train
 from models.SECBM import *
 from models.baseline_models import *
-from dataloaders import cub_dataloader
+from dataloaders import celebA_dataloader
 
 import numpy as np
 import logging
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from pytorch_lightning import seed_everything
 
 import os
 import random
 import argparse
 # 1. logging settings
 
-def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='CUB', learning_rate=1e-2):
-    n_classes = 200
-    n_concepts = 112
-    seed_torch(seed)
+def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='celeba', learning_rate=1e-2):
+    n_classes = 256
+    n_concepts = 6
+    # seed_torch(seed)
+    seed_everything(seed)
     log_root = f'./FinalLogs_0224/Grouping'
     # logger_root = 'SE-CBM-group/FinalLogger'
     checkpoint_root = './FinalCheckpoints_0224'
@@ -28,7 +30,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     # changing components
     # dataset_folder = 'CUB'
     NONLINEAR = 'Nonlinear'if nonlinear else 'Linear'
-    experiment_folder = f'{channel}_{emb_dim}/{model_name}_{channel}_{emb_dim}/Seed_{seed}'
+    experiment_folder = f'{channel}_{emb_dim}/{model_name}/Seed_{seed}'
     # logger_name = f'{model_name}_{channel}_{emb_dim}_{NONLINEAR}.log'
     # create logger, log, checkpoints dir
     log_dir = os.path.join(log_root, dataset_folder, experiment_folder)
@@ -52,21 +54,33 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     # parser.add_argument('--normalized', type=bool, default=False)
 
     parser = argparse.ArgumentParser(description='manual to this script')
-    parser.add_argument("--dataroot", type=str, default='/home/disk/disk4/CUB')
+    parser.add_argument("--dataroot", type=str, default='/home/disk/disk4/celeba')
     parser.add_argument("--batch-size", type=int, default=128)
-    # resized to 224 x 224
-    parser.add_argument("--img-size", type=int, default=224)
-    parser.add_argument("--pklroot", type=str, default='/home/disk/disk4/CUB/class_attr_data_10')
+    parser.add_argument("--img-size", type=int, default=64)
+    # parser.add_argument("--pklroot", type=str, default='celeba')
     parser.add_argument('--workers', type=int, default=8)
-    parser.add_argument('-color-jittered', type=bool, default=True)
-    parser.add_argument('--USE_IMAGENET_INCEPTION', type=bool, default=False)
-    parser.add_argument('--normalized', type=bool, default=False)
-    parser.add_argument('--used-group', type=list, default=None)
+    # parser.add_argument('-color-jittered', type=bool, default=True)
+    # parser.add_argument('--USE_IMAGENET_INCEPTION', type=bool, default=False)
+    # parser.add_argument('--normalized', type=bool, default=False)
+    # parser.add_argument('--used-group', type=list, default=None)
     parser.add_argument('--device', type=str, default='cuda:3')
+    parser.add_argument('--num-concepts', type=int, default=6)
+    parser.add_argument('--num-hidden', type=int, default=2)
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--subsample', type=int, default=12)
     args = parser.parse_args()
+
+    # TODO: if img_size = 64, backbone network output dim = 2
+    if args.img_size == 64:
+        backbone_dim = 2
+    elif args.imgsize == 224:
+        backbone_dim = 7
     # args.device = 'cpu'
     # 3. datasets and models
-    dataloaders, attr2index, class2index, attr_group_dict, group_size = cub_dataloader.load_data(args)
+    dataloaders, concept_names = celebA_dataloader.load_data(args)
+    print('concept names:', concept_names)
+    attr_group_dict = {concept_names[i]: [i] for i in range(len(concept_names))}
+    group_size = [1] * len(concept_names)
     logger.info(f'concept groups: {attr_group_dict}')# , attr_group_dict)
     logger.info(f'group size: {group_size}')
     logger.info('=======================================================')
@@ -77,49 +91,50 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
     print(device)
     if model_name == 'ViP-CBM-anchor':
-        model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=False, use_logits=True, anchor_model=2, shift=shift).to(device)
-        alpha, beta = 5, 1
+        # TODO: change the backbone dims (in this case ?)
+        model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=False, use_logits=True, anchor_model=2, shift=shift).to(device)
+        alpha, beta = 1, 1
         criterion = JointLoss(alpha, beta).to(device)
     if model_name == 'ViP-CBM-anchor-NG':
-        model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=False, use_emb=False, use_logits=True, anchor_model=2, shift=shift).to(device)
-        alpha, beta = 5, 1
+        model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=False, use_emb=False, use_logits=True, anchor_model=2, shift=shift).to(device)
+        alpha, beta = 1, 1
         criterion = JointLoss(alpha, beta).to(device)
     elif model_name == 'ViP-CBM-linear':
-        model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=False, use_logits=False, anchor_model=0, shift=shift).to(device)
-        alpha, beta = 5, 1
+        model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=False, use_logits=False, anchor_model=0, shift=shift).to(device)
+        alpha, beta = 1, 1
         criterion = JointLoss(alpha, beta, use_concept_logit=False).to(device)
     elif model_name == 'ViP-CEM-anchor':
-        model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=True, use_logits=True, anchor_model=2, shift=shift).to(device)
-        alpha, beta = 5, 1
+        model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=True, use_logits=True, anchor_model=2, shift=shift).to(device)
+        alpha, beta = 1, 1
         criterion = JointLoss(alpha, beta).to(device)
     elif model_name == 'ViP-CEM-margin':
-        model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=True, use_logits=True, anchor_model=2, shift='symmetric').to(device)
-        alpha, beta = 5, 1
+        model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=True, use_logits=True, anchor_model=2, shift='symmetric').to(device)
+        alpha, beta = 1, 1
         criterion = JointLoss(alpha, beta).to(device)
     elif model_name == 'ViP-CEM-anchor-NG':
-        model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=False, use_emb=True, use_logits=True, anchor_model=2, shift=shift).to(device)
-        alpha, beta = 5, 1
+        model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=False, use_emb=True, use_logits=True, anchor_model=2, shift=shift).to(device)
+        alpha, beta = 1, 1
         criterion = JointLoss(alpha, beta).to(device)
     elif model_name == 'ViP-CEM-anchor-LP':
-        model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=False, use_group=True, use_emb=True, use_logits=True, anchor_model=0, shift=shift).to(device)
-        alpha, beta = 5, 1
+        model = SemanticCBM(backbone_dim, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=False, use_group=True, use_emb=True, use_logits=True, anchor_model=0, shift=shift).to(device)
+        alpha, beta = 1, 1
         criterion = JointLoss(alpha, beta).to(device)
         
     elif model_name == 'jointCBM-nonlinear':
-        model = CBM(7, n_classes, n_concepts, emb_dim, 128, use_sigmoid=False).to(device)
-        alpha, beta = 5, 1
+        model = CBM(backbone_dim, n_classes, n_concepts, emb_dim, 128, use_sigmoid=False).to(device)
+        alpha, beta = 1, 1
         criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
     elif model_name == 'jointCBM-linear':
-        model = CBM(7, n_classes, n_concepts, emb_dim, None, use_sigmoid=False).to(device)
-        alpha, beta = 5, 1
+        model = CBM(backbone_dim, n_classes, n_concepts, emb_dim, None, use_sigmoid=False).to(device)
+        alpha, beta = 1, 1
         criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
     elif model_name == 'CEM':
-        model = CEM(7, n_classes, n_concepts, emb_dim, use_sigmoid=False).to(device)
-        alpha, beta = 5, 1
+        model = CEM(backbone_dim, n_classes, n_concepts, emb_dim, use_sigmoid=False).to(device)
+        alpha, beta = 1, 1
         criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
     elif model_name == 'ProbCBM':
-        model = ProbCBM(7, n_classes, n_concepts, emb_dim, device, use_sigmoid=False).to(device)
-        alpha, beta = 5, 1
+        model = ProbCBM(backbone_dim, n_classes, n_concepts, emb_dim, device, use_sigmoid=False).to(device)
+        alpha, beta = 1, 1
         criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
     # print(model.n_concepts, model.use_group, list(model.embeddings.parameters()))
     # criterion = JointLoss(alpha, beta).to(device)
@@ -141,44 +156,34 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     
     torch.save(model.state_dict(), os.path.join(checkpoint_dir, 'model-400.pth'))
 
-logger_root = 'SE-CBM-group/FinalLogger'
-dataset_folder = 'CUB'
+logger_root = './FinalLogger'
+dataset_folder = 'CelebA'
 logger_dir = os.path.join(logger_root, dataset_folder)
-logger_name = '0224.log'
+logger_name = 'abalation-0224.log'
 logger = get_logger_file(logger_dir, logger_name)
 
-# for channel in [6, 12, 24]:
-#     for emb_dim in [16, 32, 64]:
-run_main(logger, 24, 64, 400, model_name='ViP-CEM-anchor', seed=24601)
+
 
 # for model_name in ['CEM', 'ProbCBM', 'ViP-CEM-margin']:
 #     run_main(logger, 12, 32, 400, model_name=model_name, seed=520)
 
 # run_main(logger, 12, 32, 400, model_name='jointCBM-nonlinear', seed=520)
-# try:
-#     run_main(logger, 12, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=1e-2)
-# except Exception as e:
-#     logger.info(f'error in ViP-CBM-anchor-NG with 12, 32, 1e-2')
-#     logger.info(e)
-# try:
-#     run_main(logger, 24, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=1e-2)
-# except Exception as e:
-#     logger.info(f'error in ViP-CBM-anchor-NG with 24, 32, 1e-2')
-#     logger.info(e)
-# try:
-#     run_main(logger, 24, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=5e-3)
-# except Exception as e:
-#     logger.info(f'error in ViP-CBM-anchor-NG with 24, 32, 5e-3')
-#     logger.info(e)
-# for seed in [42, 24601, 3407]:
-#     for model_name in ['ViP-CEM-anchor', 'ViP-CEM-margin']:
-#         run_main(logger, 12, 32, 400, model_name=model_name, seed=seed)
-#         # run_main(12, 32, 400, model_name=model_name)
-#         # run_main(logger, 8, 32, 400, model_name=model_name, seed=seed)
 
-# for seed in [42, 24601]:
-#     for model_name in ['jointCBM-nonlinear', 'CEM', 'ProbCBM']:
-#         run_main(logger, 12, 32, 400, model_name=model_name, seed=seed)
+# for seed in [3407, 42, 24601, 2407]:
+
+#     for model_name in ['ViP-CEM-anchor', 'ViP-CEM-margin']:
+#         try:
+#             run_main(logger, 12, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=5e-3)
+#         except Exception as e:
+#             logger.info(f'error in ViP-CBM-anchor-NG with emb_dim 12, proj_dim 32, lr 5e-3')
+#             logger.info(e)
+        
+
+for seed in [42, 24601, 520]:
+    for model_name in ['jointCBM-nonlinear', 'CEM', 'ProbCBM']:
+        run_main(logger, 12, 32, 400, model_name=model_name, seed=seed, nonlinear=False)
+
+
 
 # for seed in [2407, 42, 24601, 3407]:
 #     run_main(logger, 12, 32, 400, model_name='ViP-CEM-anchor-NG', seed=seed)
