@@ -28,7 +28,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     # changing components
     # dataset_folder = 'CUB'
     NONLINEAR = 'Nonlinear'if nonlinear else 'Linear'
-    experiment_folder = f'{channel}_{emb_dim}/{model_name}_{channel}_{emb_dim}/Seed_{seed}'
+    experiment_folder = f'{channel}_{emb_dim}/{model_name}/Seed_{seed}'
     # logger_name = f'{model_name}_{channel}_{emb_dim}_{NONLINEAR}.log'
     # create logger, log, checkpoints dir
     log_dir = os.path.join(log_root, dataset_folder, experiment_folder)
@@ -62,7 +62,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     parser.add_argument('--USE_IMAGENET_INCEPTION', type=bool, default=False)
     parser.add_argument('--normalized', type=bool, default=False)
     parser.add_argument('--used-group', type=list, default=None)
-    parser.add_argument('--device', type=str, default='cuda:3')
+    parser.add_argument('--device', type=str, default='cuda:2')
     args = parser.parse_args()
     # args.device = 'cpu'
     # 3. datasets and models
@@ -141,15 +141,17 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     
     torch.save(model.state_dict(), os.path.join(checkpoint_dir, 'model-400.pth'))
 
-logger_root = 'SE-CBM-group/FinalLogger'
+logger_root = './FinalLogger'
 dataset_folder = 'CUB'
 logger_dir = os.path.join(logger_root, dataset_folder)
-logger_name = '0224.log'
+logger_name = 'vip-0224.log'
 logger = get_logger_file(logger_dir, logger_name)
 
 # for channel in [6, 12, 24]:
 #     for emb_dim in [16, 32, 64]:
-run_main(logger, 24, 64, 400, model_name='ViP-CEM-anchor', seed=24601)
+
+for model_name in ['ViP-CEM-margin', 'jointCBM-nonlinear',  'CEM', 'ProbCBM']:
+    run_main(logger, 12, 32, 400, model_name=model_name, seed=3407)
 
 # for model_name in ['CEM', 'ProbCBM', 'ViP-CEM-margin']:
 #     run_main(logger, 12, 32, 400, model_name=model_name, seed=520)

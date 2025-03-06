@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet34, ResNet34_Weights, resnet101, ResNet101_Weights, ResNet
+import math
 
 '''
 basic CBM models as baselines, including CBM (hard, soft, joint), CEM, ProbCBM (if taken into consideration)?
@@ -54,6 +55,27 @@ class CBM(nn.Module):
             c = F.sigmoid(c)
         y = self.label_predictor(c)
         return c, y
+    
+    def intervene(self, x, c, intervene_idx):
+        z = self.feature_extractor(x) # in (N, 512, 2, 2)
+        z = self.conv1x1(z) # in (N, 32, 2, 2)
+        c_pred = self.concept_predictor(torch.flatten(z, start_dim=-3, end_dim=-1))
+        # c_pred_old = c_pred.clone()
+        # correct the mistakes, use 5% percentile
+        # print(intervene_idx)
+        c_k = c[:,intervene_idx]
+        wrong_mask = (c_k != (c_pred[:, intervene_idx] > 0).float())
+        # print('wrong mask', wrong_mask.float().mean())
+        c_k_pred = c_pred[:, intervene_idx].clone()
+        c_k_pred[wrong_mask] = 2 * math.log(19) * c_k[wrong_mask] - math.log(19)
+        c_pred[:, intervene_idx] = c_k_pred
+        # c_pred = c_pred_new
+
+        # print('norm', torch.norm(c_pred - logits_pred))
+        if self.use_sigmoid:
+            c_pred = F.sigmoid(c_pred)
+        y = self.label_predictor(c_pred)
+        return y
 
 # sequentialCBM
 class CBM_loss(nn.Module):
@@ -124,6 +146,26 @@ class CEM(nn.Module):
             return p, y
         else:
             return logits, y
+    
+    def intervene(self, x, c, intervene_idx):
+        z = self.feature_extractor(x) # in (N, 512, 2, 2)
+        z = self.conv1x1(z) # in (N, m, 7, 7)
+        c_pred = self.concept_embedding(torch.flatten(z, start_dim=-2, end_dim=-1)).view(-1, self.channels, self.n_concepts, 2).transpose(1,2) # in (N, 200, m, 2)
+        logits = self.scoring(torch.flatten(c_pred, start_dim=-2, end_dim=-1)).squeeze(-1) # (N, 200)
+        p = F.sigmoid(logits)
+        # print(p.shape, c.shape)
+        # intervene here
+        c_k = c[:, intervene_idx]
+        wrong_mask = (c_k != (logits[:, intervene_idx] > 0).float())
+        p_k = p[:, intervene_idx].clone()
+        p_k[wrong_mask] = c_k[wrong_mask]
+        p[:, intervene_idx] = p_k
+        # print(logits.size(), p.size())
+        c_hat = p.unsqueeze(2).repeat(1,1,self.channels) * c_pred[:,:,:,0] + (1 - p.unsqueeze(2).repeat(1,1,self.channels)) * c_pred[:,:,:,1] # (N, 200, m)
+        # print(c_hat, c_hat.size())
+        y = self.label_predictor(torch.flatten(c_hat, start_dim=-2, end_dim=-1))
+        # print(y.size())
+        return y
 
 # ProbCBM without sampling?
 class ProbCBM(nn.Module):
@@ -176,3 +218,28 @@ class ProbCBM(nn.Module):
             return p, y
         else:
             return logits, y
+    
+    def intervene(self, x, c, intervene_idx):
+        N = x.size(0)
+        z = self.feature_extractor(x) # in (N, 512, 2, 2)
+        z = self.conv1x1(z) # in (N, m, 7, 7)
+        z = self.visual_embeddings(torch.flatten(z, start_dim=-2, end_dim=-1)).transpose(1,2) # in (N, n_concepts, emb_dim)
+        c_p = self.pos_embeddings(torch.LongTensor(range(self.n_concepts)).to(self.device)) # in (N, n_concepts, emb_dim)
+        c_n = self.neg_embeddings(torch.LongTensor(range(self.n_concepts)).to(self.device))
+
+        dist_n, dist_p = torch.norm(z - c_n, p=2, dim=-1), torch.norm(z - c_p, p=2, dim=-1) # in (N, n_concepts)
+        if self.alpha < 0:
+            self.alpha = nn.Parameter(0.1 * torch.ones(1).to(self.device), requires_grad=True)
+        logits = self.alpha * (dist_n - dist_p)
+        p = F.sigmoid(logits)
+        # intervene here
+        # print(logits.shape, c.shape, z.shape, c_p.shape, c_n.shape)
+        c_k = c[:, intervene_idx]
+        wrong_mask = (c_k != (logits[:, intervene_idx] > 0).float())
+        z_k = z[:, intervene_idx].clone()
+        z_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * c_p[intervene_idx].unsqueeze(0).repeat(N, 1, 1)[wrong_mask] + (1 - c_k[wrong_mask].unsqueeze(-1)) * c_n[intervene_idx].unsqueeze(0).repeat(N, 1, 1)[wrong_mask]
+        z[:, intervene_idx] = z_k
+        # print(c_hat, c_hat.size())
+        y = self.label_predictor(torch.flatten(z, start_dim=-2, end_dim=-1))
+        # print(y.size())
+        return y

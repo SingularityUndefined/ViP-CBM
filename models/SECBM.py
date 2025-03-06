@@ -387,15 +387,17 @@ class SemanticCBM(nn.Module):
             # u = u.transpose(-2, -1) # in (N, n_c, channels)
             # intervene
             c_k = c[:, intervene_idx]
-            u_original = u.clone()
+            # u_original = u.clone()
             if fully_intervened:
                 u[:, intervene_idx] = c_k.unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k).unsqueeze(-1) * self.concept_prediction.anchors[0]
             else:
                 logits_pred = self.concept_prediction(u, c).squeeze(-1)
-                wrong_mask = (c_k != (logits_pred > 0).float())
-                u[:, intervene_idx][wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
+                wrong_mask = (c_k != (logits_pred[:, intervene_idx] > 0).float())
+                u_k = u[:, intervene_idx].clone()
+                u_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
+                u[:, intervene_idx] = u_k
             
-            print('u changed', torch.norm(u - u_original, p=2, dim=-1).mean())
+            # print('u changed', torch.norm(u - u_original, p=2, dim=-1).mean())
 
             logits_pred = self.concept_prediction(u, c).squeeze(-1) # in (N, n_c)
             c_pred = F.sigmoid(logits_pred)
