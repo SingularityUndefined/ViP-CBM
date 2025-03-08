@@ -147,6 +147,18 @@ class CEM(nn.Module):
         else:
             return logits, y
     
+    def explain(self, x):
+        z = self.feature_extractor(x) # in (N, 512, 2, 2)
+        z = self.conv1x1(z) # in (N, m, 7, 7)
+        c = self.concept_embedding(torch.flatten(z, start_dim=-2, end_dim=-1)).view(-1, self.channels, self.n_concepts, 2).transpose(1,2) # in (N, 200, m, 2)
+        logits = self.scoring(torch.flatten(c, start_dim=-2, end_dim=-1)).squeeze(-1) # (N, 200)
+        p = F.sigmoid(logits)
+        # print(logits.size(), p.size())
+        c_hat = p.unsqueeze(2).repeat(1,1,self.channels) * c[:,:,:,0] + (1 - p.unsqueeze(2).repeat(1,1,self.channels)) * c[:,:,:,1] # (N, 200, m)
+        # print(c_hat, c_hat.size())
+        return c, c_hat
+
+    
     def intervene(self, x, c, intervene_idx):
         z = self.feature_extractor(x) # in (N, 512, 2, 2)
         z = self.conv1x1(z) # in (N, m, 7, 7)
@@ -169,7 +181,7 @@ class CEM(nn.Module):
 
 # ProbCBM without sampling?
 class ProbCBM(nn.Module):
-    def __init__(self, backbone_dim, n_classes, n_concepts, emb_dim, device, pretrained=True, joint=True, use_sigmoid=True):
+    def __init__(self, backbone_dim, n_classes, n_concepts, emb_dim, device, pretrained=True, joint=True, use_sigmoid=True, explain=False):
         super().__init__()
         self.n_classes = n_classes
         self.n_concepts = n_concepts
@@ -199,12 +211,16 @@ class ProbCBM(nn.Module):
         self.alpha = nn.Parameter(torch.ones(1), requires_grad=True)
         self.use_sigmoid = use_sigmoid
         self.device = device
+        # self.explain = explain
+
     def forward(self, x, c):
         z = self.feature_extractor(x) # in (N, 512, 2, 2)
         z = self.conv1x1(z) # in (N, m, 7, 7)
         z = self.visual_embeddings(torch.flatten(z, start_dim=-2, end_dim=-1)).transpose(1,2) # in (N, n_concepts, emb_dim)
         c_p = self.pos_embeddings(torch.LongTensor(range(self.n_concepts)).to(self.device)) # in (N, n_concepts, emb_dim)
         c_n = self.neg_embeddings(torch.LongTensor(range(self.n_concepts)).to(self.device))
+        if self.explain:
+            return z
 
         dist_n, dist_p = torch.norm(z - c_n, p=2, dim=-1), torch.norm(z - c_p, p=2, dim=-1) # in (N, n_concepts)
         if self.alpha < 0:
@@ -214,10 +230,18 @@ class ProbCBM(nn.Module):
         # print(c_hat, c_hat.size())
         y = self.label_predictor(torch.flatten(z, start_dim=-2, end_dim=-1))
         # print(y.size())
+
+
         if self.use_sigmoid:
             return p, y
         else:
             return logits, y
+    
+    def explain(self, x, c):
+        z = self.feature_extractor(x) # in (N, 512, 2, 2)
+        z = self.conv1x1(z) # in (N, m, 7, 7)
+        z = self.visual_embeddings(torch.flatten(z, start_dim=-2, end_dim=-1)).transpose(1,2) # in (N, n_concepts, emb_dim)
+        return z
     
     def intervene(self, x, c, intervene_idx):
         N = x.size(0)

@@ -150,8 +150,8 @@ logger = get_logger_file(logger_dir, logger_name)
 # for channel in [6, 12, 24]:
 #     for emb_dim in [16, 32, 64]:
 
-for model_name in ['ViP-CEM-margin', 'jointCBM-nonlinear',  'CEM', 'ProbCBM']:
-    run_main(logger, 12, 32, 400, model_name=model_name, seed=3407)
+for model_name in ['ViP-CEM-anchor', 'ViP-CEM-anchor-NG']:
+    run_main(logger, 12, 32, 400, model_name=model_name, seed=42)
 
 # for model_name in ['CEM', 'ProbCBM', 'ViP-CEM-margin']:
 #     run_main(logger, 12, 32, 400, model_name=model_name, seed=520)

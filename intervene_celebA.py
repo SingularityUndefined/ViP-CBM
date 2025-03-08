@@ -268,7 +268,7 @@ plt.legend(list(acc_dict.keys()))
 plt.xlabel('Intervened Concepts Ratio (%)')
 plt.ylabel('Class Accuracy')
 plt.title('CelebA (6 concepts, 128 classes)')
-plt.savefig('Intervention-celebA.pdf')
+plt.savefig('Intervention-celebA-midpoint.pdf')
 
 # for model_name in ['CEM', 'ProbCBM', 'ViP-CEM-margin']:
 #     run_main(logger, 12, 32, 400, model_name=model_name, seed=520)

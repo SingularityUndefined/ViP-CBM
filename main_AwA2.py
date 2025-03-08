@@ -62,7 +62,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     # parser.add_argument('--USE_IMAGENET_INCEPTION', type=bool, default=False)
     # parser.add_argument('--normalized', type=bool, default=False)
     # parser.add_argument('--used-group', type=list, default=None)
-    parser.add_argument('--device', type=str, default='cuda:1')
+    parser.add_argument('--device', type=str, default='cuda:2')
     args = parser.parse_args()
     # args.device = 'cpu'
     # 3. datasets and models
@@ -137,10 +137,10 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     
     torch.save(model.state_dict(), os.path.join(checkpoint_dir, 'model-400.pth'))
 
-logger_root = 'SE-CBM-group/FinalLogger'
+logger_root = './FinalLogger'
 dataset_folder = 'AwA2'
 logger_dir = os.path.join(logger_root, dataset_folder)
-logger_name = '0717.log'
+logger_name = '0307.log'
 logger = get_logger_file(logger_dir, logger_name)
 
 '''
@@ -161,9 +161,8 @@ for model_name in ['ViP-CEM-anchor-NG', 'ViP-CEM-margin']:
 #         logger.info(f'error in ViP-CBM-LP with seed {seed}')
 #         continue
 
-for channel in [6, 12, 24]:
-    for emb_dim in [16, 32, 64]:
-        run_main(logger, channel, emb_dim, 400, model_name='ViP-CEM-anchor', seed=24601)
+for model_name in ['ViP-CEM-anchor', 'ViP-CEM-margin', 'jointCBM-nonlinear', 'CEM', 'ProbCBM']:
+        run_main(logger, 12, 32, 250, model_name=model_name, seed=3407)
 
 # for seed in [2407, 42, 520]:
 #         run_main(logger, 12, 32, 250, model_name='ViP-CEM-anchor-LP', seed=seed)

@@ -303,7 +303,7 @@ class SemanticCBM(nn.Module):
             else:
                 return (c_pred)
             
-    def intervene(self, x, c, intervene_idx, fully_intervened=False): #args define whether to have c
+    def intervene(self, x, c, intervene_idx, fully_intervened=False, mid_point=True, mirror=False): #args define whether to have c
         N = x.size(0) # x in (N, 3, 224, 224)
         z = self.feature_extractors(x) # in (N, 512, 7, 7)
         # print(z.size())
@@ -338,7 +338,14 @@ class SemanticCBM(nn.Module):
                     else:
                         logits = self.concept_prediction(u_k, c_k).squeeze(-1) # (N, k, channels) -> (N, k)
                         wrong_mask = (c_k != (logits > 0).float())
-                        u_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
+                        if mid_point:
+                            u_k[wrong_mask] = self.concept_prediction.anchors[0] + self.concept_prediction.anchors[1] - u_k[wrong_mask]
+                        elif mirror:
+                            d_anchor = self.concept_prediction.anchors[1] - self.concept_prediction.anchors[0]
+                            mid_point = (self.concept_prediction.anchors[1] + self.concept_prediction.anchors[0]) / 2
+                            u_k[wrong_mask] = u_k[wrong_mask] - 2 *  torch.dot(x - mid_point, d_anchor) * d_anchor / (torch.norm(d_anchor) ** 2)
+                        else:
+                            u_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
 
                     # print(f'end intervening group {i}, group idx {group_idx}')
                 u_list.append(u_k)
@@ -394,7 +401,10 @@ class SemanticCBM(nn.Module):
                 logits_pred = self.concept_prediction(u, c).squeeze(-1)
                 wrong_mask = (c_k != (logits_pred[:, intervene_idx] > 0).float())
                 u_k = u[:, intervene_idx].clone()
-                u_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
+                if mid_point:
+                    u_k[wrong_mask] = self.concept_prediction.anchors[0] + self.concept_prediction.anchors[1] - u_k[wrong_mask]
+                else:
+                    u_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
                 u[:, intervene_idx] = u_k
             
             # print('u changed', torch.norm(u - u_original, p=2, dim=-1).mean())

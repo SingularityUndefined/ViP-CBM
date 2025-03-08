@@ -5,7 +5,7 @@ from utils import *
 from train.train import train
 from models.SECBM import *
 from models.baseline_models import *
-from dataloaders import cub_dataloader
+from dataloaders import awa2_dataloader
 from pytorch_lightning import seed_everything
 
 import numpy as np
@@ -74,14 +74,14 @@ def test_model(model, test_dataloader, device):
     return y_correct / total_sample
 
 
-def run_intervene(logger, channel, emb_dim, device, model_filename='model-400.pth', shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='CUB'):
-    n_classes = 200
-    n_concepts = 112
+def run_intervene(logger, channel, emb_dim, device, model_filename='model-400.pth', shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='AwA2'):
+    n_classes = 50
+    n_concepts = 85
     # seed_torch(seed)
     seed_everything(seed)
     log_root = f'./FinalLogs_0224/Grouping'
     # logger_root = 'SE-CBM-group/FinalLogger'
-    checkpoint_root = './FinalCheckpoints_0713'
+    checkpoint_root = './FinalCheckpoints_0714'
 
     # changing components
     # dataset_folder = 'CUB'
@@ -99,22 +99,33 @@ def run_intervene(logger, channel, emb_dim, device, model_filename='model-400.pt
     writer = SummaryWriter(log_dir)
 
     parser = argparse.ArgumentParser(description='manual to this script')
-    parser.add_argument("--dataroot", type=str, default='/home/disk/disk4/CUB')
+    parser.add_argument("--dataroot", type=str, default='/home/disk/disk4/AwA2/Animals_with_Attributes2')
     parser.add_argument("--batch-size", type=int, default=128)
-    # resized to 224 x 224
-    parser.add_argument("--img-size", type=int, default=224)
-    parser.add_argument("--pklroot", type=str, default='/home/disk/disk4/CUB/class_attr_data_10')
+    parser.add_argument("--img-size", type=int, default=256)
     parser.add_argument('--workers', type=int, default=8)
-    parser.add_argument('-color-jittered', type=bool, default=True)
-    parser.add_argument('--USE_IMAGENET_INCEPTION', type=bool, default=False)
-    parser.add_argument('--normalized', type=bool, default=False)
+    parser.add_argument('--USE_IMAGENET_INCEPTION', type=bool, default=True)
+    parser.add_argument('--train-val-test-ratio', type=list, default=[0.6, 0.1, 0.3])
     parser.add_argument('--used-group', type=list, default=None)
-    parser.add_argument('--device', type=str, default='cuda:3')
+    parser.add_argument('--normalized', type=bool, default=False)
+
+    # parser = argparse.ArgumentParser(description='manual to this script')
+    # parser.add_argument("--dataroot", type=str, default='CUB')
+    # parser.add_argument("--batch-size", type=int, default=128)
+    # # resized to 224 x 224
+    # parser.add_argument("--img-size", type=int, default=224)
+    # parser.add_argument("--pklroot", type=str, default='CUB/class_attr_data_10')
+    # parser.add_argument('--workers', type=int, default=8)
+    # parser.add_argument('-color-jittered', type=bool, default=True)
+    # parser.add_argument('--USE_IMAGENET_INCEPTION', type=bool, default=False)
+    # parser.add_argument('--normalized', type=bool, default=False)
+    # parser.add_argument('--used-group', type=list, default=None)
+    # parser.add_argument('--device', type=str, default='cuda:2')
     args = parser.parse_args()
+    args.device = device
     # print(group_counts)
     # args.device = 'cpu'
     # 3. datasets and models
-    dataloaders, attr2index, class2index, attr_group_dict, group_size = cub_dataloader.load_data(args)
+    dataloaders, class2index, concept2index, attr_group_dict, group_size = awa2_dataloader.load_data(args)
     concept_counts = np.cumsum(np.array([0] + group_size))
     logger.info(f'concept groups: {attr_group_dict}')# , attr_group_dict)
     logger.info(f'group size: {group_size}, {concept_counts}')
@@ -123,7 +134,7 @@ def run_intervene(logger, channel, emb_dim, device, model_filename='model-400.pt
 
     # 4. training settings
     # num_epochs = 400
-    backbone_dim = 7
+    backbone_dim = 8
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
     print(device)
     if model_name == 'ViP-CBM-anchor':
@@ -220,7 +231,7 @@ def run_intervene(logger, channel, emb_dim, device, model_filename='model-400.pt
     
 
 logger_root = './FinalLogger'
-dataset_folder = 'CUB'
+dataset_folder = 'AwA2'
 logger_dir = os.path.join(logger_root, dataset_folder)
 logger_name = 'vip-0224-intervene.log'
 logger = get_logger_file(logger_dir, logger_name)
@@ -229,7 +240,7 @@ acc_dict = {}
 
 for model_name in ['ViP-CEM-anchor' , 'ViP-CEM-margin', 'jointCBM-nonlinear', 'CEM', 'ProbCBM']:
 # for model_name in ['ProbCBM']:
-    acc_dict[model_name], concept_counts = run_intervene(logger, 12, 32, device='cuda:3', seed=42, model_name=model_name, model_filename='model-400.pth')
+    acc_dict[model_name], concept_counts = run_intervene(logger, 12, 32, device='cuda:3', seed=3407, model_name=model_name, model_filename='249.pth')
     # total_group_num = len(acc_dict)
 
 print(acc_dict)
@@ -238,12 +249,12 @@ print(acc_array.shape)
 total_group_num = acc_array.shape[1]
 
 plt.figure()
-plt.plot(concept_counts / 112 * 100, acc_array.T, marker='.')
+plt.plot(concept_counts / 85 * 100, acc_array.T, marker='.')
 plt.legend(list(acc_dict.keys()))
 plt.xlabel('Intervened Concepts Ratio (%)')
 plt.ylabel('Class Accuracy')
-plt.title('CUB (112 concepts, 200 classes)')
-plt.savefig('Intervention-CUB-midpoint.pdf')
+plt.title('AwA2 (85 concepts, 50 classes)')
+plt.savefig('Intervention-AwA2-midpoint.pdf')
 
     # plot acc_dict
 
