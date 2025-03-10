@@ -21,9 +21,9 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     n_classes = 200
     n_concepts = 112
     seed_torch(seed)
-    log_root = f'./FinalLogs_0224/Grouping'
+    log_root = f'./FinalLogs_0713/Grouping'
     # logger_root = 'SE-CBM-group/FinalLogger'
-    checkpoint_root = './FinalCheckpoints_0224'
+    checkpoint_root = './FinalCheckpoints_0713'
 
     # changing components
     # dataset_folder = 'CUB'
@@ -78,48 +78,48 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     print(device)
     if model_name == 'ViP-CBM-anchor':
         model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=False, use_logits=True, anchor_model=2, shift=shift).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = JointLoss(alpha, beta).to(device)
     if model_name == 'ViP-CBM-anchor-NG':
         model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=False, use_emb=False, use_logits=True, anchor_model=2, shift=shift).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = JointLoss(alpha, beta).to(device)
     elif model_name == 'ViP-CBM-linear':
         model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=False, use_logits=False, anchor_model=0, shift=shift).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = JointLoss(alpha, beta, use_concept_logit=False).to(device)
     elif model_name == 'ViP-CEM-anchor':
         model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=True, use_logits=True, anchor_model=2, shift=shift).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = JointLoss(alpha, beta).to(device)
     elif model_name == 'ViP-CEM-margin':
         model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=True, use_emb=True, use_logits=True, anchor_model=2, shift='symmetric').to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = JointLoss(alpha, beta).to(device)
     elif model_name == 'ViP-CEM-anchor-NG':
         model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=nonlinear, use_group=False, use_emb=True, use_logits=True, anchor_model=2, shift=shift).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = JointLoss(alpha, beta).to(device)
     elif model_name == 'ViP-CEM-anchor-LP':
         model = SemanticCBM(7, channel, emb_dim, attr_group_dict, device, 'joint', n_classes, nonlinear=False, use_group=True, use_emb=True, use_logits=True, anchor_model=0, shift=shift).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = JointLoss(alpha, beta).to(device)
         
     elif model_name == 'jointCBM-nonlinear':
         model = CBM(7, n_classes, n_concepts, emb_dim, 128, use_sigmoid=False).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
     elif model_name == 'jointCBM-linear':
         model = CBM(7, n_classes, n_concepts, emb_dim, None, use_sigmoid=False).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
     elif model_name == 'CEM':
         model = CEM(7, n_classes, n_concepts, emb_dim, use_sigmoid=False).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
     elif model_name == 'ProbCBM':
         model = ProbCBM(7, n_classes, n_concepts, emb_dim, device, use_sigmoid=False).to(device)
-        alpha, beta = 5, 1
+        alpha, beta = 5, 1 # alpha, beta = 5, 1
         criterion = CBM_loss(alpha, beta, use_sigmoid=False).to(device)
     # print(model.n_concepts, model.use_group, list(model.embeddings.parameters()))
     # criterion = JointLoss(alpha, beta).to(device)
@@ -144,14 +144,14 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
 logger_root = './FinalLogger'
 dataset_folder = 'CUB'
 logger_dir = os.path.join(logger_root, dataset_folder)
-logger_name = 'vip-0224.log'
+logger_name = 'vip-0309.log'
 logger = get_logger_file(logger_dir, logger_name)
 
 # for channel in [6, 12, 24]:
 #     for emb_dim in [16, 32, 64]:
 
-for model_name in ['ViP-CEM-anchor', 'ViP-CEM-anchor-NG']:
-    run_main(logger, 12, 32, 400, model_name=model_name, seed=42)
+for model_name in ['jointCBM-nonlinear']:
+    run_main(logger, 12, 32, 400, model_name=model_name, seed=3407)
 
 # for model_name in ['CEM', 'ProbCBM', 'ViP-CEM-margin']:
 #     run_main(logger, 12, 32, 400, model_name=model_name, seed=520)
@@ -160,12 +160,12 @@ for model_name in ['ViP-CEM-anchor', 'ViP-CEM-anchor-NG']:
 # try:
 #     run_main(logger, 12, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=1e-2)
 # except Exception as e:
-#     logger.info(f'error in ViP-CBM-anchor-NG with 12, 32, 1e-2')
+#     logger.info(f'error in ViP-CBM-anchor-NG with 12, 35, 1e-2')
 #     logger.info(e)
 # try:
 #     run_main(logger, 24, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=1e-2)
 # except Exception as e:
-#     logger.info(f'error in ViP-CBM-anchor-NG with 24, 32, 1e-2')
+#     logger.info(f'error in ViP-CBM-anchor-NG with 24, 35, 1e-2')
 #     logger.info(e)
 # try:
 #     run_main(logger, 24, 32, 400, model_name='ViP-CEM-anchor-NG', seed=3407, learning_rate=5e-3)

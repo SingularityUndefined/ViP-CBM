@@ -328,33 +328,43 @@ class SemanticCBM(nn.Module):
                 ################# TODO: intervene, change u to its reflection##########
                 group_idx = list(range(count, count+k))
                 # print('group idx, intervene idx', group_idx, intervene_idx)
-                if group_idx in intervene_idx:
+                if self.anchor_model == 2:
+                    if group_idx in intervene_idx:
                     # print(f'start intervening group {i}, group idx {group_idx}')
-                    assert self.anchor_model == 2, 'only support anchor model 2'
-                    # c_intervene = ck # in (B, k), binarized
-                    # fully intervened, u_k in (B, k, channels)
-                    if fully_intervened:
-                        u_k = c_k.unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k).unsqueeze(-1) * self.concept_prediction.anchors[0]
-                    else:
-                        logits = self.concept_prediction(u_k, c_k).squeeze(-1) # (N, k, channels) -> (N, k)
-                        wrong_mask = (c_k != (logits > 0).float())
-                        if mid_point:
-                            u_k[wrong_mask] = self.concept_prediction.anchors[0] + self.concept_prediction.anchors[1] - u_k[wrong_mask]
-                        elif mirror:
-                            d_anchor = self.concept_prediction.anchors[1] - self.concept_prediction.anchors[0]
-                            mid_point = (self.concept_prediction.anchors[1] + self.concept_prediction.anchors[0]) / 2
-                            u_k[wrong_mask] = u_k[wrong_mask] - 2 *  torch.dot(x - mid_point, d_anchor) * d_anchor / (torch.norm(d_anchor) ** 2)
+                        # c_intervene = ck # in (B, k), binarized
+                        # fully intervened, u_k in (B, k, channels)
+                        if fully_intervened:
+                            u_k = c_k.unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k).unsqueeze(-1) * self.concept_prediction.anchors[0]
                         else:
-                            u_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
+                            logits = self.concept_prediction(u_k, c_k).squeeze(-1) # (N, k, channels) -> (N, k)
+                            wrong_mask = (c_k != (logits > 0).float())
+                            if mid_point:
+                                u_k[wrong_mask] = self.concept_prediction.anchors[0] + self.concept_prediction.anchors[1] - u_k[wrong_mask]
+                            elif mirror:
+                                d_anchor = self.concept_prediction.anchors[1] - self.concept_prediction.anchors[0]
+                                middle_point = (self.concept_prediction.anchors[1] + self.concept_prediction.anchors[0]) / 2
+                                u_k[wrong_mask] = u_k[wrong_mask] - 2 *  torch.matmul(u_k[wrong_mask] - middle_point, d_anchor)[:,None] * d_anchor[None,:] / (torch.norm(d_anchor) ** 2)
+                            else:
+                                u_k[wrong_mask] = c_k[wrong_mask].unsqueeze(-1) * self.concept_prediction.anchors[1] + (1 - c_k[wrong_mask]).unsqueeze(-1) * self.concept_prediction.anchors[0]
 
                     # print(f'end intervening group {i}, group idx {group_idx}')
-                u_list.append(u_k)
+                    # u_list.append(u_k)
                 # passing through    
-                if self.anchor_model == 0:
-                    logits = self.concept_prediction(u_k).squeeze(-1)
+                elif self.anchor_model == 0:
+                    if group_idx in intervene_idx:
+                        assert not fully_intervened, 'fully intervened should be False'
+                        logits = self.concept_prediction(u_k).squeeze(-1)
+                        wrong_mask = (c_k != (logits > 0).float())
+                        # print(logits[wrong_mask].shape, self.concept_prediction.weight.shape)
+
+                        u_k[wrong_mask] = u_k[wrong_mask] - 2 * logits[wrong_mask][:, None] * self.concept_prediction.weight / torch.norm(self.concept_prediction.weight.ravel()) ** 2
+                    # u_list.append(u_k)
                 else:
-                    logits = self.concept_prediction(u_k, c_k).squeeze(-1) # (N, k, channels) -> (N, k)                 
+                    logits = self.concept_prediction(u_k, c_k).squeeze(-1) # (N, k, channels) -> (N, k) 
+                    # u_list.append(u_k)                
                 # print(logits.size())
+                # print('u_k', u_k.shape)
+                u_list.append(u_k)
                 p = F.sigmoid(logits)
                 p_list.append(p)
                 logits_list.append(logits)
@@ -376,6 +386,8 @@ class SemanticCBM(nn.Module):
             logits_pred = torch.cat(logits_list, dim=-1)
             v = torch.cat(v_list, dim=-2)
             u = torch.cat(u_list, dim=-2)
+
+            # print('u', u.shape)
             # print(u)
 
             if self.randInt is not None and self.training:

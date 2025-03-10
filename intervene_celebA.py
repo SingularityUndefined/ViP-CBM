@@ -251,10 +251,18 @@ logger = get_logger_file(logger_dir, logger_name)
 #     # run_intervene(logger, 12, 32, device='cuda:3', seed=3407, model_name='ViP-CEM-anchor')
 
 acc_dict = {}
+model_name_dict = {
+    'ViP-CEM-anchor-LP': 'ViP-CBM-LP',
+    'ViP-CEM-anchor': 'ViP-CBM',
+    'ViP-CEM-margin': 'ViP-CBM-margin',
+    'jointCBM-nonlinear': 'scalar-CBM',
+    'CEM':'CEM',
+    'ProbCBM':'ProbCBM'
+}
 
-for model_name in ['ViP-CEM-anchor' , 'ViP-CEM-margin', 'jointCBM-nonlinear', 'CEM', 'ProbCBM']:
+for model_name in ['ViP-CEM-anchor' , 'ViP-CEM-margin', 'ViP-CEM-anchor-LP', 'jointCBM-nonlinear', 'CEM', 'ProbCBM']:
 # for model_name in ['ProbCBM']:
-    acc_dict[model_name], concept_counts = run_intervene(logger, 12, 32, device='cuda:3', seed=3407, model_name=model_name, model_filename='model-400.pth')
+    acc_dict[model_name_dict[model_name]], concept_counts = run_intervene(logger, 12, 32, device='cuda:3', seed=42, model_name=model_name, model_filename='model-400.pth')
     # total_group_num = len(acc_dict)
 
 print(acc_dict)
@@ -263,11 +271,20 @@ print(acc_array.shape)
 total_group_num = acc_array.shape[1]
 
 plt.figure()
+plt.rcParams.update({
+    'axes.labelsize': 'xx-large',     # 坐标轴标签字号
+    'xtick.labelsize': 'large',    # X轴刻度字号
+    'ytick.labelsize': 'large',    # Y轴刻度字号
+    'legend.fontsize': 'large',    # 图例条目字号
+    'legend.title_fontsize':'x-large', # 图例标题字号
+    'figure.titlesize': 'xx-large'    # 标题字号
+})
+plt.subplots_adjust(left=0.15, bottom=0.15) 
 plt.plot(concept_counts / 6 * 100, acc_array.T, marker='.')
 plt.legend(list(acc_dict.keys()))
 plt.xlabel('Intervened Concepts Ratio (%)')
 plt.ylabel('Class Accuracy')
-plt.title('CelebA (6 concepts, 128 classes)')
+plt.title('CelebA (6 concepts, 128 classes)', fontsize='xx-large')
 plt.savefig('Intervention-celebA-midpoint.pdf')
 
 # for model_name in ['CEM', 'ProbCBM', 'ViP-CEM-margin']:

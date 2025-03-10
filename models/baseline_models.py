@@ -181,7 +181,7 @@ class CEM(nn.Module):
 
 # ProbCBM without sampling?
 class ProbCBM(nn.Module):
-    def __init__(self, backbone_dim, n_classes, n_concepts, emb_dim, device, pretrained=True, joint=True, use_sigmoid=True, explain=False):
+    def __init__(self, backbone_dim, n_classes, n_concepts, emb_dim, device, pretrained=True, joint=True, use_sigmoid=True):# , explain=False):
         super().__init__()
         self.n_classes = n_classes
         self.n_concepts = n_concepts
@@ -219,8 +219,8 @@ class ProbCBM(nn.Module):
         z = self.visual_embeddings(torch.flatten(z, start_dim=-2, end_dim=-1)).transpose(1,2) # in (N, n_concepts, emb_dim)
         c_p = self.pos_embeddings(torch.LongTensor(range(self.n_concepts)).to(self.device)) # in (N, n_concepts, emb_dim)
         c_n = self.neg_embeddings(torch.LongTensor(range(self.n_concepts)).to(self.device))
-        if self.explain:
-            return z
+        # if self.explain:
+            # return z
 
         dist_n, dist_p = torch.norm(z - c_n, p=2, dim=-1), torch.norm(z - c_p, p=2, dim=-1) # in (N, n_concepts)
         if self.alpha < 0:
