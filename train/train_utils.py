@@ -148,6 +148,7 @@ def run_epoch(model:nn.Module, model_type:str, device:torch.device, dataloaders:
         log_dict['concept_loss'] = avg_loss
         # log_dict['loss']
     
+    print('anchor model', anchor_model)
     if anchor_model == 2 and mode == 'train':
         log_dict['alpha'] = model.concept_prediction.alpha.item()
         log_dict['anchor_dist'] = torch.norm(model.concept_prediction.anchors[0] - model.concept_prediction.anchors[1], p=2).item()

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import random
 
 class CUB_dataset(Dataset):
-    def __init__(self, pkl_file, data_root, image_transforms, used_group=None) -> None:
+    def __init__(self, pkl_file, data_root, image_transforms, percentage=100) -> None:
         super().__init__()
         with  open(pkl_file, 'rb') as f:
             self.pkl = pickle.load(f)
@@ -21,7 +21,7 @@ class CUB_dataset(Dataset):
         self.img_transforms = image_transforms
         self.n_concepts = 112
         self.n_labels = 200
-        self.used_group = used_group
+        # self.used_group = used_group
 
         self.index2class = {}
         self.class2index = {}
@@ -57,18 +57,29 @@ class CUB_dataset(Dataset):
                 attr_group_dict[group] = [i]
                 attr_group_dict_name[group] = [label1]
 
-        self.attr_group_dict = attr_group_dict
-        self.attr_group_dict_name = attr_group_dict_name
+        # print('attr_group_dict', attr_group_dict)
+                
+        group_size = [len(val) for val in attr_group_dict.values()]      
+        self.known_groups = len(group_size) * percentage // 100
+        self.attr_group_dict = {k: v for i, (k, v) in enumerate(attr_group_dict.items()) if i < self.known_groups}
+
+        # self.attr_group_dict = attr_group_dict
+        self.attr_group_dict_name = {k: v for i, (k, v) in enumerate(attr_group_dict_name.items()) if i < self.known_groups}
         self.group_size = [len(val) for val in self.attr_group_dict.values()]
+        self.n_concepts = sum(self.group_size)
+        print(self.attr_group_dict)
+        # print('number of groups:', len(self.attr_group_dict))
             # print('group_dict', attr_group_dict)
         # used group
-        if self.used_group is not None:
-            self.idxs = []
-            self.group_size = []
-            for key in self.attr_group_dict.keys():
-                if key in used_group:
-                    self.idxs += self.attr_group_dict[key]
-                    self.group_size.append(len(self.attr_group_dict[key]))
+        # if self.known_groups > 0:
+        # # if self.used_group is not None:
+        #     self.idxs = []
+        #     self.group_size = []
+        #     for i, key in enumerate(self.attr_group_dict.keys()):
+        #         # if key in used_group:
+        #         if i < self.known_groups:
+        #             self.idxs += self.attr_group_dict[key]
+        #             self.group_size.append(len(self.attr_group_dict[key]))
 
     def __len__(self):
         return len(self.pkl)
@@ -88,9 +99,9 @@ class CUB_dataset(Dataset):
         concept_certainty = torch.Tensor(self.pkl[index]['attribute_certainty'])
 
         # group_selection
-        if self.used_group:
-            concept = concept[self.idxs]
-            concept_certainty = concept_certainty[self.idxs]
+        # if self.known_groups > 0:
+        concept = concept[:self.n_concepts]
+        concept_certainty = concept_certainty[:self.n_concepts]
 
         sample = {}
         sample['image'] = image
@@ -174,6 +185,7 @@ def load_data(args):
     normalized = args.normalized
     used_group = args.used_group
     color_jittered = args.color_jittered
+    percentage = args.percentage if hasattr(args, 'percentage') else 100 # percentage of used groups, default is 100%
     # 112 used attrs by CUB, 0-indexed (https://github.com/yewsiang/ConceptBottleneck/issues/15)
     
     train_dataset, val_dataset, test_dataset = None, None, None
@@ -215,9 +227,9 @@ def load_data(args):
     val_pkl = os.path.join(pkl_root, 'val.pkl')
     test_pkl = os.path.join(pkl_root, 'test.pkl')
 
-    train_dataset = CUB_dataset(train_pkl, data_root, trainTransform, used_group=used_group)
-    val_dataset = CUB_dataset(val_pkl, data_root, testTransform, used_group=used_group)
-    test_dataset = CUB_dataset(test_pkl, data_root, testTransform, used_group=used_group)
+    train_dataset = CUB_dataset(train_pkl, data_root, trainTransform, percentage=percentage)
+    val_dataset = CUB_dataset(val_pkl, data_root, testTransform, percentage=percentage)
+    test_dataset = CUB_dataset(test_pkl, data_root, testTransform, percentage=percentage)
 
     i = random.randint(0, 100)
     sample = train_dataset.__getitem__(i)

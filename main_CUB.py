@@ -17,18 +17,18 @@ import random
 import argparse
 # 1. logging settings
 
-def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='CUB', learning_rate=1e-2):
+def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=True, model_name='ViP-CBM', seed=3407, dataset_folder='CUB', learning_rate=1e-2, percentage=100):
     n_classes = 200
     n_concepts = 112
     seed_torch(seed)
-    log_root = f'./FinalLogs_0713/Grouping'
+    log_root = './FinalLogs_0528/Grouping'
     # logger_root = 'SE-CBM-group/FinalLogger'
-    checkpoint_root = './FinalCheckpoints_0713'
+    checkpoint_root = './FinalCheckpoints_0528'
 
     # changing components
     # dataset_folder = 'CUB'
     NONLINEAR = 'Nonlinear'if nonlinear else 'Linear'
-    experiment_folder = f'{channel}_{emb_dim}/{model_name}/Seed_{seed}'
+    experiment_folder = f'{channel}_{emb_dim}_{percentage}p/{model_name}/Seed_{seed}'
     # logger_name = f'{model_name}_{channel}_{emb_dim}_{NONLINEAR}.log'
     # create logger, log, checkpoints dir
     log_dir = os.path.join(log_root, dataset_folder, experiment_folder)
@@ -63,12 +63,24 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     parser.add_argument('--normalized', type=bool, default=False)
     parser.add_argument('--used-group', type=list, default=None)
     parser.add_argument('--device', type=str, default='cuda:2')
+    parser.add_argument('--seed', type=int, default=seed)
+    parser.add_argument('--percentage', type=int, default=percentage)
     args = parser.parse_args()
     # args.device = 'cpu'
     # 3. datasets and models
     dataloaders, attr2index, class2index, attr_group_dict, group_size = cub_dataloader.load_data(args)
     logger.info(f'concept groups: {attr_group_dict}')# , attr_group_dict)
     logger.info(f'group size: {group_size}')
+    # known_groups = len(group_size) * percentage // 100
+    # known_attr_group_dict = {k: v for i, (k, v) in enumerate(attr_group_dict.items()) if i < known_groups}
+    # logger.info(f'known groups: {known_attr_group_dict}')
+    # attr_group_dict = known_attr_group_dict
+    n_concepts = list(attr_group_dict.values())[-1][-1] + 1
+    logger.info(f'number of concepts: {n_concepts}')
+
+
+        
+    # logger.info(f'known groups: {known_groups}')
     logger.info('=======================================================')
     logger.info(f'FOLDER NAME: {experiment_folder}')
 
@@ -132,7 +144,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     print(f"Number of learnable parameters: {num_learnable_params}")
     print(f"Number of non-learnable parameters: {num_non_learnable_params}")
 
-    if 'ViP' in model_name:
+    if 'ViP' in model_name and 'LP' not in model_name:
         train(model, 'joint', device, dataloaders, criterion, optimizer, attr_group_dict, writer, logger, num_epochs, checkpoint_dir, anchor_model=2) 
     else:
         train(model, 'joint', device, dataloaders, criterion, optimizer, attr_group_dict, writer, logger, num_epochs, checkpoint_dir, anchor_model=0) 
@@ -141,17 +153,18 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     
     torch.save(model.state_dict(), os.path.join(checkpoint_dir, 'model-400.pth'))
 
+percentage = 100
 logger_root = './FinalLogger'
 dataset_folder = 'CUB'
 logger_dir = os.path.join(logger_root, dataset_folder)
-logger_name = 'vip-0309.log'
+logger_name = f'vip-0528-{percentage}.log'
 logger = get_logger_file(logger_dir, logger_name)
 
 # for channel in [6, 12, 24]:
 #     for emb_dim in [16, 32, 64]:
 
-for model_name in ['jointCBM-nonlinear']:
-    run_main(logger, 12, 32, 400, model_name=model_name, seed=3407)
+for model_name in ['ViP-CEM-anchor', 'ViP-CEM-anchor-NG']:
+    run_main(logger, 12, 32, 400, model_name=model_name, seed=3407, percentage=percentage)
 
 # for model_name in ['CEM', 'ProbCBM', 'ViP-CEM-margin']:
 #     run_main(logger, 12, 32, 400, model_name=model_name, seed=520)

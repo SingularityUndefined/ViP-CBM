@@ -153,6 +153,7 @@ class SemanticCBM(nn.Module):
         self.attr_group_dict = attr_group_dict
         self.group_size = [len(v) for v in self.attr_group_dict.values()]
         self.n_concepts = sum(self.group_size)
+        print('model group size, nconcepts:', self.group_size, self.n_concepts)
         self.device = device
         self.model_type = model_type
         assert model_type in ['joint', 'sequential', 'independent'], 'model type not in joint, sequential or independent'
@@ -228,7 +229,8 @@ class SemanticCBM(nn.Module):
                 # nonlinear
                 if self.nonlinear:
                     # u_k = F.relu(u_k + 1 / torch.norm(z, p=2, dim=-1).unsqueeze(-1) * u_k) # u_c = z_c v (1 + 1 / norm(z_c))
-                    u_k = F.relu(u_k + 1 / (torch.norm(z, p=2, dim=1).unsqueeze(1)) * u_k)
+                    u_k = F.softmax(u_k, dim=-2) * u_k # u_c = softmax(z_c v)
+                    # u_k = F.relu(u_k + 1 / (torch.norm(z, p=2, dim=1).unsqueeze(1)) * u_k)
                 # u_k = u_k.transpose(-2, -1) # in (N, k, channels)
                 u_list.append(u_k)
 
@@ -270,9 +272,12 @@ class SemanticCBM(nn.Module):
             v = self.embeddings(torch.LongTensor(range(self.n_concepts)).to(self.device)) # in (n_c, emb_dim)
             u = torch.matmul(v, z) # in (N, channels, n_c)
             # print(z.size(), u.size())
+            # print('u.size()', u.size())
             if self.nonlinear:
                 # u_k = F.relu(u_k + 1 / torch.norm(z, p=2, dim=1).unsqueeze(1) * u_k)
-                u = F.relu(u + 1 / (torch.norm(z, p=2, dim=1).unsqueeze(1)) * u) # u_c = relu(z_c v + z_c v / norm(z_c))
+
+                u = F.softmax(u, dim=-2) * u # u_c = softmax(z_c v)
+                # u = F.relu(u + 1 / (torch.norm(z, p=2, dim=1).unsqueeze(1)) * u) # u_c = relu(z_c v + z_c v / norm(z_c))
             # u = u.transpose(-2, -1) # in (N, n_c, channels)
             logits_pred = self.concept_prediction(u, c).squeeze(-1) # in (N, n_c)
             c_pred = F.sigmoid(logits_pred)
@@ -470,6 +475,7 @@ class JointLoss(nn.Module):
             concept_loss_fn = nn.BCEWithLogitsLoss(reduction='mean')
         else:
             concept_loss_fn = nn.BCELoss(reduction='mean')
+        # print(c.shape, c_pred.shape)
         concept_loss = concept_loss_fn(c_pred, c)
         # target prediction loss
         task_loss_fn = nn.CrossEntropyLoss(reduction='mean')

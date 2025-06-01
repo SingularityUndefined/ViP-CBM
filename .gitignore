@@ -9,11 +9,17 @@ FinalLogs_0709/
 FinalLogs_0713/
 FinalLogs_0224/
 FinalLogs_0309/
+FinalLogs_0528/
+
 __pycache__/
 .ipynb_checkpoints/
 FinalCheckpoints/
 FinalCheckpoints_0709/
 FinalCheckpoints_0224/
 FinalCheckpoints_0309/
+FinalCheckpoints_0528/
+
 logger/
 logs/
+# *.pdf
+*.png

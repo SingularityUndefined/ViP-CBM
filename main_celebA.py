@@ -23,9 +23,9 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
     n_concepts = 6
     # seed_torch(seed)
     seed_everything(seed)
-    log_root = f'./FinalLogs_0224/Grouping'
+    log_root = f'./FinalLogs_0601/Grouping'
     # logger_root = 'SE-CBM-group/FinalLogger'
-    checkpoint_root = './FinalCheckpoints_0224'
+    checkpoint_root = './FinalCheckpoints_0601'
 
     # changing components
     # dataset_folder = 'CUB'
@@ -162,7 +162,7 @@ def run_main(logger, channel, emb_dim, num_epochs=400, shift='none', nonlinear=T
 logger_root = './FinalLogger'
 dataset_folder = 'CelebA'
 logger_dir = os.path.join(logger_root, dataset_folder)
-logger_name = 'vip-0224-ablation.log'
+logger_name = 'vip-0601.log'
 logger = get_logger_file(logger_dir, logger_name)
 
 
@@ -181,9 +181,8 @@ logger = get_logger_file(logger_dir, logger_name)
 #             logger.info(f'error in {model_name} with emb_dim 12, proj_dim 32, lr 5e-3')
 #             logger.info(e)
 
-for channel in [6, 12, 24]:
-    for emb_dim in [16, 32, 64]:
-        run_main(logger, channel, emb_dim, 400, model_name='ViP-CEM-anchor-NG', seed=3407)
+for model_name in ['ViP-CEM-anchor', 'ViP-CEM-anchor-NG']:
+    run_main(logger, 12, 32, 400, model_name=model_name, seed=3407)
         
 # for seed in [42, 24601, 2407]:
 
